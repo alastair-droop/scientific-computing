@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Scientific-computing by alastair-droop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Scientific-computing</h1>
+      <h2 class="project-tagline">Resources for the Leeds Scientific Computing seminar series</h2>
+      <a href="https://github.com/alastair-droop/scientific-computing" class="btn">View on GitHub</a>
+      <a href="https://github.com/alastair-droop/scientific-computing/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/alastair-droop/scientific-computing/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="example-data-analysis-from-arrayexpress-in-r" class="anchor" href="#example-data-analysis-from-arrayexpress-in-r" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Example Data Analysis from ArrayExpress in R</h1>
+
+<p>This is a summary of the data analysis Scientific Computation workshop held in St. James's Campus on May 17, 2016.</p>
+
+<p>The aim of this session is to demonstrate how you might get a specific dataset online (along with its associated metadata), load it into R, and then perform a simple A--B statistical test on it.</p>
+
+<h2>
+<a id="download-the-data" class="anchor" href="#download-the-data" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Download the Data</h2>
+
+<p>First, we need to download some data from ArrayExpress. For this session, we'll use the Melanoma cohort data produced in Prof. Bishop's group and submitted by Jeremie Nsengimana. It has the acccession number <a href="https://www.ebi.ac.uk/arrayexpress/experiments/E-MTAB-4725/">E-MTAB-4725</a>.</p>
+
+<p>We need both the processed data and sample mapping from Jeremie's Melanoma dataset. Either you can use the website to download the files, or you can use the following in the terminal. (NB: You might not have the necessary command <code>curl</code> installed.)</p>
+
+<div class="highlight highlight-source-shell"><pre>curl https://www.ebi.ac.uk/arrayexpress/files/E-MTAB-4725/E-MTAB-4725.processed.1.zip <span class="pl-k">&gt;</span> E-MTAB-4725.processed.1.zip
+curl https://www.ebi.ac.uk/arrayexpress/files/E-MTAB-4725/E-MTAB-4725.sdrf.txt <span class="pl-k">&gt;</span> E-MTAB-4725.sdrf.txt</pre></div>
+
+<p>Once you have the data file (<code>E-MTAB-4725.processed.1.zip</code>) and the Sample-Data Relationship File (SDRF file) (<code>E-MTAB-4725.sdrf.txt</code>), you need to unzip the data. You can double-click on the file, or you can use the terminal:</p>
+
+<div class="highlight highlight-source-shell"><pre>unzip E-MTAB-4725.processed.1.zip</pre></div>
+
+<p>At this point, you should have two downloaded files: a processed expression file <code>LMC204primaries_wgdaslHT12.4gx.txt</code> and a metadata file <code>E-MTAB-4725.sdrf.txt</code>.</p>
+
+<h2>
+<a id="explore-the-downloaded-data" class="anchor" href="#explore-the-downloaded-data" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Explore the Downloaded Data</h2>
+
+<p>Before using R, we should see what we have downloaded. As the files are quite big, we'll do this in the terminal (rather than in a text editor, or Excel).</p>
+
+<div class="highlight highlight-source-shell"><pre>wc -l ./LMC204primaries_wgdaslHT12.4gx.txt <span class="pl-c"># How many lines are in the data file?</span>
+wc -l ./E-MTAB-4725.sdrf.txt <span class="pl-c"># How many lines are in the metadata file?</span>
+head ./LMC204primaries_wgdaslHT12.4gx.txt <span class="pl-c"># Show the first few lines of the data file</span>
+head ./E-MTAB-4725.sdrf.txt <span class="pl-c"># Show the first few lines of the metadata file</span></pre></div>
+
+<p>Looking closely at what we have, we can see that our data file contains a header line, followed by many (well, 29354 - 1 = 29353) data lines. Each data line consists of a probe ID, a gene name, then 204 individual sample expression values.</p>
+
+<p>The metadata consists of a header line followed by 204 lines, each of which consists of multiple bits of information about that sample.</p>
+
+<h2>
+<a id="load-the-data-into-r" class="anchor" href="#load-the-data-into-r" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Load the Data into R</h2>
+
+<p>Now we know our data have a header row and row names, we can load them into R. Fire up R, and make sure that you've set R to the same directory that contains your two data files. Remember that you can move around the file hierarchy from within R using:</p>
+
+<div class="highlight highlight-source-r"><pre>getwd() <span class="pl-c"># Where am I now?</span>
+getwd(<span class="pl-s"><span class="pl-pds">"</span>new_dir<span class="pl-pds">"</span></span>) <span class="pl-c"># Go into a new directory</span>
+list.files() <span class="pl-c"># Show the files in the current diretory</span></pre></div>
+
+<p>First, we need to load the expression data:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">d</span> <span class="pl-k">&lt;-</span> read.table(<span class="pl-s"><span class="pl-pds">"</span>LMC204primaries_wgdaslHT12.4gx.txt<span class="pl-pds">"</span></span>, <span class="pl-v">sep</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">"</span><span class="pl-cce">\t</span><span class="pl-pds">"</span></span>, <span class="pl-v">header</span><span class="pl-k">=</span><span class="pl-c1">TRUE</span>, <span class="pl-v">row.names</span><span class="pl-k">=</span><span class="pl-c1">1</span>)</pre></div>
+
+<p>This command tells R to:</p>
+
+<ol>
+<li>Read in the file <code>LMC204primaries_wgdaslHT12.4gx.txt</code>;</li>
+<li>Assume that each column is separated by tab characters (<code>sep="\t"</code>);</li>
+<li>Treat the first row of data as column headers (<code>header=TRUE</code>);</li>
+<li>Treat the first column of data are row names (<code>row.names=1</code>); and finally</li>
+<li>Save the resulting <code>data.frame</code> to a variable called <code>d</code>.</li>
+</ol>
+
+<p>Similarly, we can load in the metadata:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">metadata</span> <span class="pl-k">&lt;-</span> read.table(<span class="pl-s"><span class="pl-pds">"</span>E-MTAB-4725.sdrf.txt<span class="pl-pds">"</span></span>, <span class="pl-v">sep</span><span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">"</span><span class="pl-cce">\t</span><span class="pl-pds">"</span></span>, <span class="pl-v">header</span><span class="pl-k">=</span><span class="pl-c1">TRUE</span>, <span class="pl-v">row.names</span><span class="pl-k">=</span><span class="pl-c1">1</span>)</pre></div>
+
+<h3>
+<a id="preprocess-the-data" class="anchor" href="#preprocess-the-data" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Preprocess the Data</h3>
+
+<p>Now that we have loaded the data, we need to do several things to it to make working with it easier. The first thing we need to do is to pull out the gene ID column from <code>d</code>, as it will get in the way, and is preventing us making the expression data into a matrix. There are multiple ways of getting a single column from a <code>data.frame</code>, but however we decide to get the <code>GENE</code> column, we need to make sure it has names. We assign it names based on the rownames of d (where it came from), and finally remove the <code>GENE</code> column from <code>d</code>. After this, we can make d into a <code>matrix</code>: </p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-c"># NB: All three of these commands do the same thing!</span>
+<span class="pl-smi">genes</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">d</span>[,<span class="pl-c1">1</span>] <span class="pl-c"># Pull out the first column and save it as a vector to the variable `genes`.</span>
+<span class="pl-smi">genes</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">d</span>[,<span class="pl-s"><span class="pl-pds">"</span>GENE<span class="pl-pds">"</span></span>] <span class="pl-c"># Pull out the column with the name `GENE` and save it as a vector to the variable `genes`.</span>
+<span class="pl-smi">genes</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">d</span><span class="pl-k">$</span><span class="pl-smi">GENE</span> <span class="pl-c"># Pull out the column with the name `GENE` and save it as a vector to the variable `genes`.</span>
+
+names(<span class="pl-smi">genes</span>) <span class="pl-k">&lt;-</span> rownames(<span class="pl-smi">d</span>) <span class="pl-c"># Assign names to the vector genes.</span>
+<span class="pl-smi">d</span><span class="pl-k">$</span><span class="pl-smi">GENE</span> <span class="pl-k">&lt;-</span> <span class="pl-c1">NULL</span> <span class="pl-c"># Remove the GENE column from d.</span>
+
+<span class="pl-smi">d</span> <span class="pl-k">&lt;-</span> as.matrix(<span class="pl-smi">d</span>) <span class="pl-c"># Make d into a matrix.</span>
+class(<span class="pl-smi">d</span>) <span class="pl-c"># Check that it is a matrix.</span></pre></div>
+
+<h3>
+<a id="preprocess-the-metadata" class="anchor" href="#preprocess-the-metadata" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Preprocess the Metadata</h3>
+
+<p>We need to define two groups of samples in order to perform a simple statistical test. In this case, we'll use the sample gender although you will of course use more sensible clinical variables to assign your groups. Whatever we choose to look at, we need to make sure that the data and metadata datasets match. To do this, we'll first perform some sanity checks to make sure that we have metadata corresponding to our data, and <em>visa versa</em>:</p>
+
+<div class="highlight highlight-source-r"><pre>colnames(<span class="pl-smi">d</span>) <span class="pl-c"># What are the sample names in our data?</span>
+rownames(<span class="pl-smi">metadata</span>) <span class="pl-c"># What are the sample names in our metadata?</span>
+ncol(<span class="pl-smi">d</span>) <span class="pl-c"># How many sample columns do we have in our data?</span>
+nrow(<span class="pl-smi">metadata</span>) <span class="pl-c"># How many sample rows do we have in the metadata?</span>
+length(intersect(colnames(<span class="pl-smi">d</span>), rownames(<span class="pl-smi">metadata</span>))) <span class="pl-c"># What is the size of the intersection between our data and metadata samples?</span>
+length(setdiff(colnames(<span class="pl-smi">d</span>), rownames(<span class="pl-smi">metadata</span>))) <span class="pl-c"># How many samples are in our data but not in our metadata?</span>
+length(setdiff(rownames(<span class="pl-smi">metadata</span>), colnames(<span class="pl-smi">d</span>))) <span class="pl-c"># How many samples are in our metadata but not in our data?</span></pre></div>
+
+<p>This has shown us that we have 204 samples, and that we have the same IDs in both our data and metadata. Now, we are in a position to extract a variable of interest to use when selecting our two groups. Here we'll use the patient gender. As the column names are extracted by R from the input text file, and have been stripped of any illegal characters, they might look a little odd:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">gender</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">metadata</span>[,<span class="pl-s"><span class="pl-pds">"</span>Characteristics.sex.<span class="pl-pds">"</span></span>] <span class="pl-c"># Extract the metadata column "Characteristics.sex." and call it gender.</span>
+<span class="pl-smi">gender</span> <span class="pl-k">&lt;-</span> <span class="pl-k">factor</span>(<span class="pl-smi">gender</span>) <span class="pl-c"># Make gender a factor, not a vector of strings.</span>
+names(<span class="pl-smi">gender</span>) <span class="pl-k">&lt;-</span> rownames(<span class="pl-smi">metadata</span>) <span class="pl-c"># Assign names to gender from the metadata object it has just come from.</span></pre></div>
+
+<h3>
+<a id="check-that-the-data-match" class="anchor" href="#check-that-the-data-match" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Check that the Data Match</h3>
+
+<p>At this point, we are almost ready to run some tests.  However, we must make sure that the order of our columns in <code>d</code> is the same as the order of genders in <code>gender</code>. Otherwise, we are in danger of mixing up our metadata. To do this, we can simply subset <code>gender</code> by the column names of <code>d</code>. This works as we've assigned names to the <code>gender</code> vector:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">gender</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">gender</span>[colnames(<span class="pl-smi">d</span>)] <span class="pl-c"># Make sure that gender is in the correct order to be comparable to our data</span>
+all(names(<span class="pl-smi">gender</span>) <span class="pl-k">==</span> colnames(<span class="pl-smi">d</span>)) <span class="pl-c"># Check if all the names of gender match the corresponding column names in d.</span></pre></div>
+
+<h2>
+<a id="statistical-testing" class="anchor" href="#statistical-testing" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Statistical Testing</h2>
+
+<p>As a brief example, we're going to perform a t-test upon the first row of our data. To do this, we need to extract the expressions for the first probe for male patients and female patients separately. Then, we can use the <code>t.test</code> function to test if they come from the same background distribution:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">male</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">d</span>[<span class="pl-c1">1</span>, <span class="pl-smi">gender</span><span class="pl-k">==</span><span class="pl-s"><span class="pl-pds">"</span>male<span class="pl-pds">"</span></span>] <span class="pl-c"># Select the first probe from d and all samples for which geneder is male</span>
+<span class="pl-smi">female</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">d</span>[<span class="pl-c1">1</span>, <span class="pl-smi">gender</span><span class="pl-k">==</span><span class="pl-s"><span class="pl-pds">"</span>female<span class="pl-pds">"</span></span>] <span class="pl-c"># Select the first probe from d and all samples for which geneder is female</span>
+t.test(<span class="pl-smi">female</span>, <span class="pl-smi">male</span>) <span class="pl-c"># Perform a simple t-test between female and male</span></pre></div>
+
+<p>This gives back something like:</p>
+
+<pre><code>    Welch Two Sample t-test
+
+data:  female and male
+t = 0.56901, df = 190.32, p-value = 0.57
+alternative hypothesis: true difference in means is not equal to 0
+95 percent confidence interval:
+ -0.1000113  0.1811052
+sample estimates:
+mean of x mean of y 
+ 13.86714  13.82659 
+</code></pre>
+
+<p>From this, we can see that the first probe has about the same expressin mean in females and males (13.86714 vs 13.82659), and that the probability of seeing a difference this large (or larger) by chance is 0.57 (i.e. the <em>p</em>-value). So, we would not claim this probe was significantly different between our samples.</p>
+
+<p>If we only want to test one row, this would be fine.  However, we have <code>nrow(d)</code> rows (29354) to test, so it would be unfeasibly slow to test each in turn like this. Luckily, we can use the <code>rowttests</code> function in the <code>genefilter</code> package. However to use it, we must make sure it is installed.</p>
+
+<h3>
+<a id="installing-the-genefilter-package" class="anchor" href="#installing-the-genefilter-package" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Installing the <code>genefilter</code> Package</h3>
+
+<p>The <a href="http://bioconductor.org/packages/release/bioc/html/genefilter.html"><code>genefilter</code></a> package is part of the <a href="http://bioconductor.org">Bioconductor</a> project. Before attempting to install it, check if you already have it loaded:</p>
+
+<div class="highlight highlight-source-r"><pre>library(<span class="pl-smi">genefilter</span>) <span class="pl-c"># Load the genefilter library</span></pre></div>
+
+<p>If you get an error along the lines of <code>Error in library(genefilter) : there is no package called ‘genefilter’</code>, then you need to install it:</p>
+
+<div class="highlight highlight-source-r"><pre>source(<span class="pl-s"><span class="pl-pds">"</span>https://bioconductor.org/biocLite.R<span class="pl-pds">"</span></span>)
+biocLite(<span class="pl-s"><span class="pl-pds">"</span>genefilter<span class="pl-pds">"</span></span>)
+library(<span class="pl-smi">genefilter</span>)</pre></div>
+
+<p>When installing, you might be asked if you want to update other packages. For now, say <code>n</code>.</p>
+
+<h3>
+<a id="using-rowttests" class="anchor" href="#using-rowttests" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Using <code>rowttests</code>
+</h3>
+
+<p>Now that we have the <code>genefilter</code> package loaded, we can run multiple t-tests at once. The <code>rowttests</code> function requires a matrix of data (in our case <code>d</code>), and a factor containing two levels that splits the columns of the data matrix into two groups (in our case <code>gender</code>). As we have these two things, we can now do a t-test for each row in turn:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">res</span> <span class="pl-k">&lt;-</span> rowttests(<span class="pl-smi">d</span>, <span class="pl-smi">gender</span>) <span class="pl-c"># Perform a t.test on each row of the data.</span>
+head(<span class="pl-smi">res</span>) <span class="pl-c"># Look at the top of the results.</span></pre></div>
+
+<p>Notice that for the top gene, we get pretty much the same value. If we want the <code>t.test</code> results to be exactly the same as those from <code>rowttests</code>, we would have to tell <code>t.test</code> to assume equal variance for the two groups (using <code>var.equal=TRUE</code>), otherwise the tests will give very slightly different results. If your analysis requires non-equal variance, you need to be careful when using <code>rowttests</code>, as it assumes equal variance.</p>
+
+<p>Although we have now successfully generated <em>p</em>-values for each row in the input data, we need to add some extra data for this to become useful. First, we need to generate an adjusted <em>p</em>-value to take into account the fact that we have performed 29,354 individual tests, and thus some are likely to be significant by chance. Second, we need to add on the gene names to make the probe IDs meaningful. Last, we need to select our top hits.</p>
+
+<h3>
+<a id="adjusting-p-values" class="anchor" href="#adjusting-p-values" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Adjusting p Values</h3>
+
+<p>Luckily, adjusting <em>p</em>-values in R is trivial, we can use the <code>p.adjust</code> function. All this needs is a vector of <em>p</em>-values, and it returns a vector of adjusted <em>p</em>-values. By default, it uses Benjamini &amp; Hochberg correction (also called False Discovery Rate). We will create a new column in our results for the adjusted <em>p</em>-values:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">res</span><span class="pl-k">$</span><span class="pl-smi">p.adjust</span> <span class="pl-k">&lt;-</span> p.adjust(<span class="pl-smi">res</span><span class="pl-k">$</span><span class="pl-smi">p.value</span>) <span class="pl-c"># Add a new column of adjusted p-values to res.</span></pre></div>
+
+<h3>
+<a id="annotating--sorting-the-results" class="anchor" href="#annotating--sorting-the-results" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Annotating &amp; Sorting the Results</h3>
+
+<p>Just as we added a new column for the adjusted <em>p</em>-values, we can add the gene name annotations that we extracted from the data a while ago. As we assigned these names, we can easily add them onto our results by the rownames of <code>res</code>:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">res</span><span class="pl-k">$</span><span class="pl-smi">gene</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">genes</span>[rownames(<span class="pl-smi">res</span>)] <span class="pl-c"># Add the gene names to res.</span></pre></div>
+
+<p>At this point, we can extract only significant differences, and order our data by p-value:</p>
+
+<div class="highlight highlight-source-r"><pre><span class="pl-smi">res.sel</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">res</span>[<span class="pl-smi">res</span><span class="pl-k">$</span><span class="pl-smi">p.adjust</span> <span class="pl-k">&lt;</span><span class="pl-k">=</span> <span class="pl-c1">0.01</span>,] <span class="pl-c"># Extract only those probes with an adjusted p-value less than a threshold of 0.01.</span>
+<span class="pl-smi">res.sel</span> <span class="pl-k">&lt;-</span> <span class="pl-smi">res.sel</span>[order(<span class="pl-smi">res.sel</span><span class="pl-k">$</span><span class="pl-smi">p.adjust</span>),] <span class="pl-c"># Use order to re-order the rows into decreasing order of adjusted p value.</span></pre></div>
+
+<p>At this point, <code>res.sel</code> contains 31 annotated probes, each of which corresponds to a gene that has a significant difference (by <em>t</em>-test) between our two sample groups.</p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/alastair-droop/scientific-computing">Scientific-computing</a> is maintained by <a href="https://github.com/alastair-droop">alastair-droop</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
