@@ -1,14 +1,26 @@
 # Load the data from file:
 datasets <- c('a', 'b')
+dataset.cols <- c('a'='orange', 'b'='navy')
 
 weights <- list()
 for(d in datasets){
-    filename <- paste('newts/location-', d, '.txt', sep='')
+    filename <- paste0('location-', d, '.txt')
     weights[[d]] <- as.numeric(readLines(filename))
 }
 
+# Get the weight summaries:
+means <- sapply(weights, mean)
+sds <- sapply(weights, sd)
 
+# Generate some normal distribution data:
+x <- seq(from=0, to=60, by=0.01)
+plot(NA, xlim=c(0, 60), ylim=c(0, 0.07), xlab='Weight', ylab='Density')
+for(d in datasets){
+    y <- dnorm(x, mean=means[d], sd=sds[d])
+    lines(y~x, type='l', col=dataset.cols[d])
+}
 
+t.test(weights$a, weights$b)
 
 # Big data analysis:
 
